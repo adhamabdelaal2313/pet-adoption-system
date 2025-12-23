@@ -1,4 +1,4 @@
-# Pet Adoption System - Complete Documentation
+# Tails of Hope - Complete Documentation
 
 Complete documentation for the Pet Adoption System, including API reference, database schema, user guide, and developer guide.
 
@@ -930,17 +930,4 @@ npm run build
 
 ---
 
-## Resources
-
-- [Express.js Documentation](https://expressjs.com/)
-- [React Documentation](https://react.dev/)
-- [Tailwind CSS Documentation](https://tailwindcss.com/)
-- [MySQL2 Documentation](https://github.com/sidorares/node-mysql2)
-- [TiDB Cloud Documentation](https://docs.pingcap.com/tidbcloud/)
-
----
-
-## License
-
-MIT
 

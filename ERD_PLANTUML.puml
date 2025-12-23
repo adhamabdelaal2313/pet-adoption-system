@@ -1,0 +1,134 @@
+@startuml ERD_Pet_Adoption_System
+
+!define PK_COLOR #FFE6E6
+!define FK_COLOR #E6F3FF
+!define TABLE_COLOR #F0F0F0
+
+skinparam linetype ortho
+skinparam roundcorner 10
+skinparam shadowing false
+
+entity "Users" as users PK_COLOR {
+    * UserID : INT <<PK>>
+    --
+    * Email : VARCHAR(100) <<UK>>
+    * PasswordHash : VARCHAR(255)
+    * FirstName : VARCHAR(50)
+    * LastName : VARCHAR(50)
+    * Role : VARCHAR(20) <<DEFAULT 'user'>>
+    CreatedAt : TIMESTAMP
+}
+
+entity "Species" as species PK_COLOR {
+    * SpeciesID : INT <<PK>>
+    --
+    * SpeciesName : VARCHAR(50)
+}
+
+entity "Breeds" as breeds PK_COLOR {
+    * BreedID : INT <<PK>>
+    --
+    * SpeciesID : INT <<FK>>
+    * BreedName : VARCHAR(100)
+}
+
+entity "Shelters" as shelters PK_COLOR {
+    * ShelterID : INT <<PK>>
+    --
+    ShelterName : VARCHAR(100)
+    City : VARCHAR(50)
+    Capacity : INT
+    Phone : VARCHAR(20)
+}
+
+entity "Animals" as animals PK_COLOR {
+    * AnimalID : INT <<PK>>
+    --
+    Name : VARCHAR(50)
+    * BreedID : INT <<FK>>
+    * ShelterID : INT <<FK>>
+    DateOfBirth : DATE
+    IntakeDate : DATE
+    Gender : CHAR(1)
+    Status : VARCHAR(20) <<DEFAULT 'Available'>>
+    HealthStatus : VARCHAR(50) <<DEFAULT 'Healthy'>>
+    ImageURL : LONGTEXT
+}
+
+entity "Adopters" as adopters PK_COLOR {
+    * AdopterID : INT <<PK>>
+    --
+    FirstName : VARCHAR(50)
+    LastName : VARCHAR(50)
+    Email : VARCHAR(100) <<UK>>
+    Phone : VARCHAR(20)
+}
+
+entity "Applications" as applications PK_COLOR {
+    * AppID : INT <<PK>>
+    --
+    * AdopterID : INT <<FK>>
+    * AnimalID : INT <<FK>>
+    AppDate : DATE <<DEFAULT CURDATE()>>
+    Status : VARCHAR(20) <<DEFAULT 'Pending'>>
+    Notes : TEXT
+}
+
+entity "Medical_Records" as medical PK_COLOR {
+    * RecordID : INT <<PK>>
+    --
+    * AnimalID : INT <<FK>>
+    * RecordDate : DATE
+    * RecordType : VARCHAR(50)
+    Description : TEXT
+    Veterinarian : VARCHAR(100)
+    Notes : TEXT
+}
+
+entity "Follow_Ups" as followups PK_COLOR {
+    * FollowUpID : INT <<PK>>
+    --
+    * ApplicationID : INT <<FK>>
+    * FollowUpDate : DATE
+    * FollowUpType : VARCHAR(50)
+    Notes : TEXT
+    Status : VARCHAR(50) <<DEFAULT 'Scheduled'>>
+}
+
+' Relationships
+species ||--o{ breeds : "has (1:N)"
+breeds ||--o{ animals : "categorizes (1:N)"
+shelters ||--o{ animals : "houses (1:N)"
+animals ||--o{ applications : "has (1:N)"
+animals ||--o{ medical : "has (1:N)"
+adopters ||--o{ applications : "submits (1:N)"
+applications ||--o{ followups : "has (1:N)"
+
+' Logical relationship (not FK)
+users .. adopters : "linked by Email"
+
+note right of users
+    Users table for authentication
+    Role: 'admin' or 'user'
+end note
+
+note right of animals
+    Status: 'Available', 'Pending', 'Adopted'
+    HealthStatus: 'Healthy', 'Under Treatment', 'Special Needs'
+end note
+
+note right of applications
+    Status: 'Pending', 'Approved', 'Rejected', 'Completed'
+end note
+
+note right of medical
+    RecordType: 'Vaccination', 'Checkup', 'Treatment', 'Surgery'
+end note
+
+note right of followups
+    FollowUpType: 'Phone Call', 'Home Visit', 'Email Check-in'
+    Status: 'Scheduled', 'Completed', 'Cancelled'
+end note
+
+@enduml
+
