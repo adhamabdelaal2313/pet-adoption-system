@@ -17,6 +17,8 @@ const authRoutes = require('./src/routes/auth.routes');
 const petRoutes = require('./src/routes/pet.routes');
 const reportRoutes = require('./src/routes/report.routes');
 const adminRoutes = require('./src/routes/admin.routes');
+const applicationRoutes = require('./src/routes/application.routes');
+const medicalRoutes = require('./src/routes/medical.routes');
 
 // Health Check Route
 app.get('/', (req, res) => {
@@ -50,7 +52,22 @@ app.get('/api', (req, res) => {
             },
             admin: {
                 breeds: 'GET /api/admin/breeds',
-                shelters: 'GET /api/admin/shelters'
+                shelters: 'GET /api/admin/shelters',
+                species: 'GET /api/admin/species'
+            },
+            applications: {
+                getAll: 'GET /api/applications',
+                getById: 'GET /api/applications/:id',
+                submit: 'POST /api/applications',
+                updateStatus: 'PUT /api/applications/:id',
+                getFollowUps: 'GET /api/applications/:id/follow-ups',
+                addFollowUp: 'POST /api/applications/:id/follow-ups'
+            },
+            medical: {
+                getRecords: 'GET /api/medical/:animalId',
+                addRecord: 'POST /api/medical',
+                updateRecord: 'PUT /api/medical/:id',
+                deleteRecord: 'DELETE /api/medical/:id'
             },
             test: {
                 database: 'GET /api/test-db'
@@ -64,6 +81,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/pets', petRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/applications', applicationRoutes);
+app.use('/api/medical', medicalRoutes);
 
 // Database Test Route
 app.get('/api/test-db', async (req, res) => {

@@ -5,6 +5,9 @@ exports.getAllPets = async (req, res) => {
         console.log('GET /api/pets - Request received');
         const statusFilter = req.query.status || null;
         
+        // Check if user is admin (optional auth - req.user may not exist)
+        const isAdmin = req.user && req.user.role === 'admin';
+        
         let query = `
             SELECT 
                 a.AnimalID,
@@ -27,10 +30,17 @@ exports.getAllPets = async (req, res) => {
         `;
         
         const params = [];
+        
+        // Admins see all pets, regular users see only non-adopted pets
         if (statusFilter) {
             query += ' WHERE a.Status = ?';
             params.push(statusFilter);
+        } else if (!isAdmin) {
+            // Non-admin users: exclude adopted pets
+            query += ' WHERE a.Status != ?';
+            params.push('Adopted');
         }
+        // If admin and no status filter, show all pets (no WHERE clause)
         
         query += ' ORDER BY a.AnimalID DESC';
         
@@ -109,28 +119,74 @@ exports.getPetById = async (req, res) => {
 
 exports.addPet = async (req, res) => {
     try {
-        const { name, breedId, shelterId, dateOfBirth, gender, image_data, healthStatus } = req.body;
+        const { name, breedId, breedName, breedType, shelterId, shelterName, shelterCity, dateOfBirth, gender, image_data, healthStatus } = req.body;
 
-        if (!name || !breedId || !shelterId || !gender) {
-            return res.status(400).json({ error: 'Name, breedId, shelterId, and gender are required' });
+        if (!name || !gender) {
+            return res.status(400).json({ error: 'Name and gender are required' });
         }
 
         if (gender !== 'M' && gender !== 'F') {
             return res.status(400).json({ error: 'Gender must be M or F' });
         }
 
+        let finalBreedId = breedId;
+        let finalShelterId = shelterId;
+
+        // Handle breed: use breedId if provided, otherwise create new breed
+        if (!breedId && breedName && breedType) {
+            // Check if species exists
+            const [speciesCheck] = await db.query(
+                'SELECT SpeciesID FROM Species WHERE SpeciesName = ?',
+                [breedType]
+            );
+
+            let speciesId;
+            if (speciesCheck.length === 0) {
+                // Create new species
+                const [speciesResult] = await db.query(
+                    'INSERT INTO Species (SpeciesName) VALUES (?)',
+                    [breedType]
+                );
+                speciesId = speciesResult.insertId;
+            } else {
+                speciesId = speciesCheck[0].SpeciesID;
+            }
+
+            // Create new breed
+            const [breedResult] = await db.query(
+                'INSERT INTO Breeds (SpeciesID, BreedName) VALUES (?, ?)',
+                [speciesId, breedName]
+            );
+            finalBreedId = breedResult.insertId;
+        } else if (!breedId) {
+            return res.status(400).json({ error: 'Either breedId or breedName with breedType is required' });
+        }
+
+        // Handle shelter: use shelterId if provided, otherwise create new shelter
+        if (!shelterId && shelterName) {
+            const [shelterResult] = await db.query(
+                'INSERT INTO Shelters (ShelterName, City, Capacity) VALUES (?, ?, ?)',
+                [shelterName, shelterCity || 'Unknown', 50]
+            );
+            finalShelterId = shelterResult.insertId;
+        } else if (!shelterId) {
+            return res.status(400).json({ error: 'Either shelterId or shelterName is required' });
+        }
+
+        // Validate breed exists
         const [breedCheck] = await db.query(
             'SELECT BreedID FROM Breeds WHERE BreedID = ?',
-            [breedId]
+            [finalBreedId]
         );
 
         if (breedCheck.length === 0) {
             return res.status(404).json({ error: 'Breed not found' });
         }
 
+        // Validate shelter exists
         const [shelterCheck] = await db.query(
             'SELECT ShelterID FROM Shelters WHERE ShelterID = ?',
-            [shelterId]
+            [finalShelterId]
         );
 
         if (shelterCheck.length === 0) {
@@ -145,8 +201,8 @@ exports.addPet = async (req, res) => {
 
         const [result] = await db.query(query, [
             name,
-            breedId,
-            shelterId,
+            finalBreedId,
+            finalShelterId,
             dateOfBirth || null,
             gender,
             healthStatus || 'Healthy',
@@ -168,7 +224,7 @@ exports.addPet = async (req, res) => {
 exports.updatePet = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, breedId, shelterId, dateOfBirth, gender, status, healthStatus, image_data } = req.body;
+        const { name, breedId, breedName, breedType, shelterId, shelterName, shelterCity, dateOfBirth, gender, status, healthStatus, image_data } = req.body;
 
         const [existingPet] = await db.query(
             'SELECT AnimalID FROM Animals WHERE AnimalID = ?',
@@ -179,6 +235,46 @@ exports.updatePet = async (req, res) => {
             return res.status(404).json({ error: 'Pet not found' });
         }
 
+        let finalBreedId = breedId;
+        let finalShelterId = shelterId;
+
+        // Handle breed: use breedId if provided, otherwise create new breed
+        if (!breedId && breedName && breedType) {
+            // Check if species exists
+            const [speciesCheck] = await db.query(
+                'SELECT SpeciesID FROM Species WHERE SpeciesName = ?',
+                [breedType]
+            );
+
+            let speciesId;
+            if (speciesCheck.length === 0) {
+                // Create new species
+                const [speciesResult] = await db.query(
+                    'INSERT INTO Species (SpeciesName) VALUES (?)',
+                    [breedType]
+                );
+                speciesId = speciesResult.insertId;
+            } else {
+                speciesId = speciesCheck[0].SpeciesID;
+            }
+
+            // Create new breed
+            const [breedResult] = await db.query(
+                'INSERT INTO Breeds (SpeciesID, BreedName) VALUES (?, ?)',
+                [speciesId, breedName]
+            );
+            finalBreedId = breedResult.insertId;
+        }
+
+        // Handle shelter: use shelterId if provided, otherwise create new shelter
+        if (!shelterId && shelterName) {
+            const [shelterResult] = await db.query(
+                'INSERT INTO Shelters (ShelterName, City, Capacity) VALUES (?, ?, ?)',
+                [shelterName, shelterCity || 'Unknown', 50]
+            );
+            finalShelterId = shelterResult.insertId;
+        }
+
         const updates = [];
         const values = [];
 
@@ -186,13 +282,13 @@ exports.updatePet = async (req, res) => {
             updates.push('Name = ?');
             values.push(name);
         }
-        if (breedId) {
+        if (finalBreedId) {
             updates.push('BreedID = ?');
-            values.push(breedId);
+            values.push(finalBreedId);
         }
-        if (shelterId) {
+        if (finalShelterId) {
             updates.push('ShelterID = ?');
-            values.push(shelterId);
+            values.push(finalShelterId);
         }
         if (dateOfBirth) {
             updates.push('DateOfBirth = ?');

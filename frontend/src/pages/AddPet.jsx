@@ -9,7 +9,11 @@ const AddPet = () => {
     const [formData, setFormData] = useState({
         name: '',
         breedId: '',
+        breedName: '',
+        breedType: '',
         shelterId: '',
+        shelterName: '',
+        shelterCity: '',
         dateOfBirth: '',
         gender: '',
         healthStatus: 'Healthy',
@@ -17,39 +21,58 @@ const AddPet = () => {
     });
     const [breeds, setBreeds] = useState([]);
     const [shelters, setShelters] = useState([]);
+    const [species, setSpecies] = useState([]);
+    const [useCustomBreed, setUseCustomBreed] = useState(false);
+    const [useCustomShelter, setUseCustomShelter] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
 
     useEffect(() => {
         if (!isAuthenticated) {
-            navigate('/login');
+            navigate('/');
             return;
         }
-        fetchBreeds();
-        fetchShelters();
+        setInitialLoading(true);
+        const loadData = async () => {
+            await Promise.all([fetchBreeds(), fetchShelters(), fetchSpecies()]);
+            setInitialLoading(false);
+        };
+        loadData();
     }, [isAuthenticated, navigate]);
 
     const fetchBreeds = async () => {
         try {
-            // Note: You may need to create these endpoints or use existing ones
-            // For now, using a placeholder - adjust based on your actual API
             const response = await api.get('/admin/breeds');
-            setBreeds(response.data);
+            setBreeds(response.data.breeds || []);
         } catch (err) {
             console.error('Error fetching breeds:', err);
-            // Fallback: You can hardcode some breeds or handle gracefully
+            setError('Failed to load breeds. Please refresh the page.');
+        } finally {
+            setInitialLoading(false);
         }
     };
 
     const fetchShelters = async () => {
         try {
-            // Note: You may need to create these endpoints or use existing ones
             const response = await api.get('/admin/shelters');
-            setShelters(response.data);
+            setShelters(response.data.shelters || []);
         } catch (err) {
             console.error('Error fetching shelters:', err);
-            // Fallback: You can hardcode some shelters or handle gracefully
+            setError('Failed to load shelters. Please refresh the page.');
+        }
+    };
+
+    const fetchSpecies = async () => {
+        try {
+            const response = await api.get('/admin/species');
+            setSpecies(response.data.species || []);
+        } catch (err) {
+            console.error('Error fetching species:', err);
+            // Don't set error here to avoid blocking the form
+            // Just log and continue with empty species array
+            setSpecies([]);
         }
     };
 
@@ -102,8 +125,38 @@ const AddPet = () => {
         setSuccess('');
         setLoading(true);
 
+        // Validate: either dropdown selection or custom text must be provided
+        if (!useCustomBreed && !formData.breedId) {
+            setError('Please select a breed or enter a custom breed');
+            setLoading(false);
+            return;
+        }
+
+        if (!useCustomShelter && !formData.shelterId) {
+            setError('Please select a shelter or enter a custom shelter');
+            setLoading(false);
+            return;
+        }
+
+        if (useCustomBreed && (!formData.breedName || !formData.breedType)) {
+            setError('Please enter both breed name and pet type');
+            setLoading(false);
+            return;
+        }
+
+        if (useCustomShelter && !formData.shelterName) {
+            setError('Please enter shelter name');
+            setLoading(false);
+            return;
+        }
+
         try {
-            const response = await api.post('/pets', formData);
+            const submitData = {
+                ...formData,
+                breedId: useCustomBreed ? '' : formData.breedId,
+                shelterId: useCustomShelter ? '' : formData.shelterId
+            };
+            const response = await api.post('/pets', submitData);
 
             setSuccess('Pet added successfully!');
             
@@ -111,12 +164,18 @@ const AddPet = () => {
             setFormData({
                 name: '',
                 breedId: '',
+                breedName: '',
+                breedType: '',
                 shelterId: '',
+                shelterName: '',
+                shelterCity: '',
                 dateOfBirth: '',
                 gender: '',
-                image_data: '',
-                description: ''
+                healthStatus: 'Healthy',
+                image_data: ''
             });
+            setUseCustomBreed(false);
+            setUseCustomShelter(false);
 
             // Reset file input
             const fileInput = document.getElementById('imageInput');
@@ -134,13 +193,37 @@ const AddPet = () => {
         }
     };
 
+    if (!isAuthenticated) {
+        return null;
+    }
+
+    if (initialLoading) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-32 pb-8 flex items-center justify-center">
+                <div className="text-slate-600 text-lg">Loading...</div>
+            </div>
+        );
+    }
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-24 pb-8">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-32 pb-8">
             <div className="container mx-auto px-4 max-w-2xl">
                 <div className="text-center mb-8">
                     <h1 className="text-4xl font-bold text-slate-800 mb-2">Add New Pet</h1>
                     <p className="text-slate-600">Share a pet that needs a loving home</p>
                 </div>
+
+                {error && (
+                    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-800">
+                        {error}
+                    </div>
+                )}
+
+                {success && (
+                    <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-800">
+                        {success}
+                    </div>
+                )}
 
                 <form onSubmit={handleSubmit} className="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8">
                     {/* Name */}
@@ -168,9 +251,16 @@ const AddPet = () => {
                             className="shadow appearance-none border border-slate-300 rounded-lg w-full py-2 px-3 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             id="breedId"
                             name="breedId"
-                            required
-                            value={formData.breedId}
-                            onChange={handleInputChange}
+                            value={useCustomBreed ? 'other' : formData.breedId}
+                            onChange={(e) => {
+                                if (e.target.value === 'other') {
+                                    setUseCustomBreed(true);
+                                    setFormData({ ...formData, breedId: '' });
+                                } else {
+                                    setUseCustomBreed(false);
+                                    setFormData({ ...formData, breedId: e.target.value, breedName: '', breedType: '' });
+                                }
+                            }}
                         >
                             <option value="">Select a breed</option>
                             {breeds.map((breed) => (
@@ -178,7 +268,37 @@ const AddPet = () => {
                                     {breed.BreedName} ({breed.SpeciesName})
                                 </option>
                             ))}
+                            <option value="other">Other...</option>
                         </select>
+                        {useCustomBreed && (
+                            <div className="mt-2 space-y-2">
+                                <input
+                                    type="text"
+                                    placeholder="Breed Name"
+                                    className="shadow appearance-none border border-slate-300 rounded-lg w-full py-2 px-3 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    value={formData.breedName}
+                                    onChange={(e) => setFormData({ ...formData, breedName: e.target.value })}
+                                    required={useCustomBreed}
+                                />
+                                <select
+                                    className="shadow appearance-none border border-slate-300 rounded-lg w-full py-2 px-3 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    value={formData.breedType}
+                                    onChange={(e) => setFormData({ ...formData, breedType: e.target.value })}
+                                    required={useCustomBreed}
+                                >
+                                    <option value="">Select Pet Type</option>
+                                    {species && species.length > 0 ? (
+                                        species.map((s) => (
+                                            <option key={s.SpeciesID} value={s.SpeciesName}>
+                                                {s.SpeciesName}
+                                            </option>
+                                        ))
+                                    ) : (
+                                        <option value="" disabled>Loading species...</option>
+                                    )}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     {/* Shelter */}
@@ -190,9 +310,16 @@ const AddPet = () => {
                             className="shadow appearance-none border border-slate-300 rounded-lg w-full py-2 px-3 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                             id="shelterId"
                             name="shelterId"
-                            required
-                            value={formData.shelterId}
-                            onChange={handleInputChange}
+                            value={useCustomShelter ? 'other' : formData.shelterId}
+                            onChange={(e) => {
+                                if (e.target.value === 'other') {
+                                    setUseCustomShelter(true);
+                                    setFormData({ ...formData, shelterId: '' });
+                                } else {
+                                    setUseCustomShelter(false);
+                                    setFormData({ ...formData, shelterId: e.target.value, shelterName: '', shelterCity: '' });
+                                }
+                            }}
                         >
                             <option value="">Select a shelter</option>
                             {shelters.map((shelter) => (
@@ -200,7 +327,27 @@ const AddPet = () => {
                                     {shelter.ShelterName} - {shelter.City}
                                 </option>
                             ))}
+                            <option value="other">Other...</option>
                         </select>
+                        {useCustomShelter && (
+                            <div className="mt-2 space-y-2">
+                                <input
+                                    type="text"
+                                    placeholder="Shelter Name"
+                                    className="shadow appearance-none border border-slate-300 rounded-lg w-full py-2 px-3 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    value={formData.shelterName}
+                                    onChange={(e) => setFormData({ ...formData, shelterName: e.target.value })}
+                                    required={useCustomShelter}
+                                />
+                                <input
+                                    type="text"
+                                    placeholder="City (optional)"
+                                    className="shadow appearance-none border border-slate-300 rounded-lg w-full py-2 px-3 text-slate-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    value={formData.shelterCity}
+                                    onChange={(e) => setFormData({ ...formData, shelterCity: e.target.value })}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {/* Gender */}

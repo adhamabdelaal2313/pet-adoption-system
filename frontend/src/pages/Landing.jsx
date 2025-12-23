@@ -57,7 +57,7 @@ const Landing = () => {
                         <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg mb-4">
                             <span className="text-4xl">🐾</span>
                         </div>
-                        <h1 className="text-4xl font-bold text-slate-800 mb-2">Pet Adoption</h1>
+                        <h1 className="text-4xl font-bold text-slate-800 mb-2">Tails of Hope</h1>
                         <p className="text-slate-600">Find your perfect furry friend</p>
                     </div>
 

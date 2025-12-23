@@ -3,7 +3,7 @@ import api from '../utils/axios';
 import { useAuth } from '../context/AuthContext';
 
 const AdminCRUD = () => {
-    const { isAuthenticated } = useAuth();
+    const { isAuthenticated, isAdmin } = useAuth();
     const [pets, setPets] = useState([]);
     const [loading, setLoading] = useState(false);
     const [editingPet, setEditingPet] = useState(null);
@@ -11,21 +11,32 @@ const AdminCRUD = () => {
     const [formData, setFormData] = useState({
         name: '',
         breedId: '',
+        breedName: '',
+        breedType: '',
         shelterId: '',
+        shelterName: '',
+        shelterCity: '',
         dateOfBirth: '',
         gender: '',
         healthStatus: 'Healthy',
-        image_data: ''
+        image_data: '',
+        petType: ''
     });
     const [breeds, setBreeds] = useState([]);
     const [shelters, setShelters] = useState([]);
+    const [species, setSpecies] = useState([]);
     const [message, setMessage] = useState({ type: '', text: '' });
+    const [viewingPet, setViewingPet] = useState(null);
+    const [showViewModal, setShowViewModal] = useState(false);
+    const [useCustomBreed, setUseCustomBreed] = useState(false);
+    const [useCustomShelter, setUseCustomShelter] = useState(false);
 
     useEffect(() => {
         if (!isAuthenticated) return;
         fetchPets();
         fetchBreeds();
         fetchShelters();
+        fetchSpecies();
     }, [isAuthenticated]);
 
     const fetchPets = async () => {
@@ -58,15 +69,46 @@ const AdminCRUD = () => {
         }
     };
 
+    const fetchSpecies = async () => {
+        try {
+            const response = await api.get('/admin/species');
+            setSpecies(response.data.species || []);
+        } catch (err) {
+            console.error('Error fetching species:', err);
+        }
+    };
+
     const showMessage = (type, text) => {
         setMessage({ type, text });
         setTimeout(() => setMessage({ type: '', text: '' }), 3000);
     };
 
+    const calculateAge = (dateOfBirth) => {
+        if (!dateOfBirth) return 'N/A';
+        const birthDate = new Date(dateOfBirth);
+        const today = new Date();
+        let years = today.getFullYear() - birthDate.getFullYear();
+        let months = today.getMonth() - birthDate.getMonth();
+        
+        if (months < 0) {
+            years--;
+            months += 12;
+        }
+        
+        if (years === 0) {
+            return `${months} month${months !== 1 ? 's' : ''}`;
+        } else if (months === 0) {
+            return `${years} year${years !== 1 ? 's' : ''}`;
+        } else {
+            return `${years} year${years !== 1 ? 's' : ''}, ${months} month${months !== 1 ? 's' : ''}`;
+        }
+    };
+
     const handleView = async (id) => {
         try {
             const response = await api.get(`/pets/${id}`);
-            alert(`Pet Details:\nName: ${response.data.pet.Name}\nType: ${response.data.pet.PetType || 'N/A'}\nBreed: ${response.data.pet.BreedName}\nStatus: ${response.data.pet.Status}\nHealth: ${response.data.pet.HealthStatus}`);
+            setViewingPet(response.data.pet);
+            setShowViewModal(true);
         } catch (err) {
             showMessage('error', 'Failed to fetch pet details');
         }
@@ -77,17 +119,25 @@ const AdminCRUD = () => {
         setFormData({
             name: '',
             breedId: '',
+            breedName: '',
+            breedType: '',
             shelterId: '',
+            shelterName: '',
+            shelterCity: '',
             dateOfBirth: '',
             gender: '',
             healthStatus: 'Healthy',
-            image_data: ''
+            image_data: '',
+            petType: ''
         });
+        setUseCustomBreed(false);
+        setUseCustomShelter(false);
         setShowForm(true);
     };
 
     const handleEdit = (pet) => {
         setEditingPet(pet);
+        const selectedBreed = breeds.find(b => b.BreedID === pet.BreedID);
         setFormData({
             name: pet.Name,
             breedId: pet.BreedID,
@@ -95,7 +145,8 @@ const AdminCRUD = () => {
             dateOfBirth: pet.DateOfBirth || '',
             gender: pet.Gender,
             healthStatus: pet.HealthStatus || 'Healthy',
-            image_data: pet.image_data || ''
+            image_data: pet.image_data || '',
+            petType: pet.PetType || selectedBreed?.SpeciesName || ''
         });
         setShowForm(true);
     };
@@ -142,15 +193,48 @@ const AdminCRUD = () => {
         e.preventDefault();
         setLoading(true);
 
+        // Validate: either dropdown selection or custom text must be provided
+        if (!useCustomBreed && !formData.breedId) {
+            showMessage('error', 'Please select a breed or enter a custom breed');
+            setLoading(false);
+            return;
+        }
+
+        if (!useCustomShelter && !formData.shelterId) {
+            showMessage('error', 'Please select a shelter or enter a custom shelter');
+            setLoading(false);
+            return;
+        }
+
+        if (useCustomBreed && (!formData.breedName || !formData.breedType)) {
+            showMessage('error', 'Please enter both breed name and pet type');
+            setLoading(false);
+            return;
+        }
+
+        if (useCustomShelter && !formData.shelterName) {
+            showMessage('error', 'Please enter shelter name');
+            setLoading(false);
+            return;
+        }
+
         try {
-                                if (editingPet) {
-                                await api.put(`/pets/${editingPet.AnimalID}`, formData);
-                                showMessage('success', 'Pet updated successfully');
-                            } else {
-                                await api.post('/pets', formData);
-                                showMessage('success', 'Pet added successfully');
-                            }
+            const submitData = {
+                ...formData,
+                breedId: useCustomBreed ? '' : formData.breedId,
+                shelterId: useCustomShelter ? '' : formData.shelterId
+            };
+
+            if (editingPet) {
+                await api.put(`/pets/${editingPet.AnimalID}`, submitData);
+                showMessage('success', 'Pet updated successfully');
+            } else {
+                await api.post('/pets', submitData);
+                showMessage('success', 'Pet added successfully');
+            }
             setShowForm(false);
+            setUseCustomBreed(false);
+            setUseCustomShelter(false);
             fetchPets();
         } catch (err) {
             showMessage('error', err.response?.data?.error || 'Operation failed');
@@ -160,11 +244,41 @@ const AdminCRUD = () => {
     };
 
     if (!isAuthenticated) {
-        return <div className="text-center py-12">Please log in to access admin features</div>;
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-32 pb-8 flex items-center justify-center">
+                <div className="text-center">
+                    <p className="text-slate-600 text-lg">Please log in to access admin features</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAdmin) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-32 pb-8 flex items-center justify-center">
+                <div className="text-center bg-white rounded-xl shadow-lg p-8 max-w-md">
+                    <div className="text-6xl mb-4">🔒</div>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">Access Denied</h2>
+                    <p className="text-slate-600">This page is only available for administrators.</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!isAdmin) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-32 pb-8 flex items-center justify-center">
+                <div className="text-center bg-white rounded-xl shadow-lg p-8 max-w-md">
+                    <div className="text-6xl mb-4">🔒</div>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">Access Denied</h2>
+                    <p className="text-slate-600">This page is only available for administrators.</p>
+                </div>
+            </div>
+        );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-24 pb-8">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-32 pb-8">
             <div className="container mx-auto px-4">
                 <div className="flex justify-between items-center mb-8">
                     <h1 className="text-4xl font-bold text-slate-800">Pet Management</h1>
@@ -199,32 +313,111 @@ const AdminCRUD = () => {
                                 />
                             </div>
                             <div>
+                                <label className="block text-sm font-medium mb-1">Pet Type</label>
+                                <input
+                                    type="text"
+                                    readOnly
+                                    className="w-full px-4 py-2 border rounded-lg bg-gray-50 text-gray-600 cursor-not-allowed"
+                                    value={formData.petType || (formData.breedId ? breeds.find(b => b.BreedID === parseInt(formData.breedId))?.SpeciesName || '' : '')}
+                                    placeholder="Select a breed to see pet type"
+                                />
+                            </div>
+                            <div>
                                 <label className="block text-sm font-medium mb-1">Breed *</label>
                                 <select
-                                    required
                                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    value={formData.breedId}
-                                    onChange={(e) => setFormData({ ...formData, breedId: e.target.value })}
+                                    value={useCustomBreed ? 'other' : formData.breedId}
+                                    onChange={(e) => {
+                                        if (e.target.value === 'other') {
+                                            setUseCustomBreed(true);
+                                            setFormData({ ...formData, breedId: '', petType: '' });
+                                        } else {
+                                            setUseCustomBreed(false);
+                                            const selectedBreed = breeds.find(b => b.BreedID === parseInt(e.target.value));
+                                            setFormData({ 
+                                                ...formData, 
+                                                breedId: e.target.value,
+                                                breedName: '',
+                                                breedType: '',
+                                                petType: selectedBreed?.SpeciesName || ''
+                                            });
+                                        }
+                                    }}
                                 >
                                     <option value="">Select breed</option>
                                     {breeds.map(b => (
-                                        <option key={b.BreedID} value={b.BreedID}>{b.BreedName}</option>
+                                        <option key={b.BreedID} value={b.BreedID}>
+                                            {b.BreedName} ({b.SpeciesName})
+                                        </option>
                                     ))}
+                                    <option value="other">Other...</option>
                                 </select>
+                                {useCustomBreed && (
+                                    <div className="mt-2 space-y-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Breed Name"
+                                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            value={formData.breedName}
+                                            onChange={(e) => setFormData({ ...formData, breedName: e.target.value })}
+                                            required={useCustomBreed}
+                                        />
+                                        <select
+                                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            value={formData.breedType}
+                                            onChange={(e) => setFormData({ ...formData, breedType: e.target.value, petType: e.target.value })}
+                                            required={useCustomBreed}
+                                        >
+                                            <option value="">Select Pet Type</option>
+                                            {species.map((s) => (
+                                                <option key={s.SpeciesID} value={s.SpeciesName}>
+                                                    {s.SpeciesName}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">Shelter *</label>
                                 <select
-                                    required
                                     className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                                    value={formData.shelterId}
-                                    onChange={(e) => setFormData({ ...formData, shelterId: e.target.value })}
+                                    value={useCustomShelter ? 'other' : formData.shelterId}
+                                    onChange={(e) => {
+                                        if (e.target.value === 'other') {
+                                            setUseCustomShelter(true);
+                                            setFormData({ ...formData, shelterId: '' });
+                                        } else {
+                                            setUseCustomShelter(false);
+                                            setFormData({ ...formData, shelterId: e.target.value, shelterName: '', shelterCity: '' });
+                                        }
+                                    }}
                                 >
                                     <option value="">Select shelter</option>
                                     {shelters.map(s => (
                                         <option key={s.ShelterID} value={s.ShelterID}>{s.ShelterName}</option>
                                     ))}
+                                    <option value="other">Other...</option>
                                 </select>
+                                {useCustomShelter && (
+                                    <div className="mt-2 space-y-2">
+                                        <input
+                                            type="text"
+                                            placeholder="Shelter Name"
+                                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            value={formData.shelterName}
+                                            onChange={(e) => setFormData({ ...formData, shelterName: e.target.value })}
+                                            required={useCustomShelter}
+                                        />
+                                        <input
+                                            type="text"
+                                            placeholder="City (optional)"
+                                            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                                            value={formData.shelterCity}
+                                            onChange={(e) => setFormData({ ...formData, shelterCity: e.target.value })}
+                                        />
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <label className="block text-sm font-medium mb-1">Gender *</label>
@@ -304,6 +497,7 @@ const AdminCRUD = () => {
                                     <th className="px-4 py-3 text-left">Name</th>
                                     <th className="px-4 py-3 text-left">Type</th>
                                     <th className="px-4 py-3 text-left">Breed</th>
+                                    <th className="px-4 py-3 text-left">Age</th>
                                     <th className="px-4 py-3 text-left">Status</th>
                                     <th className="px-4 py-3 text-left">Health</th>
                                     <th className="px-4 py-3 text-left">Actions</th>
@@ -312,11 +506,11 @@ const AdminCRUD = () => {
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan="7" className="px-4 py-8 text-center">Loading...</td>
+                                        <td colSpan="8" className="px-4 py-8 text-center">Loading...</td>
                                     </tr>
                                 ) : pets.length === 0 ? (
                                     <tr>
-                                        <td colSpan="7" className="px-4 py-8 text-center">No pets found</td>
+                                        <td colSpan="8" className="px-4 py-8 text-center">No pets found</td>
                                     </tr>
                                 ) : (
                                     pets.map((pet) => (
@@ -325,6 +519,7 @@ const AdminCRUD = () => {
                                             <td className="px-4 py-3 font-medium">{pet.Name}</td>
                                             <td className="px-4 py-3">{pet.PetType || 'N/A'}</td>
                                             <td className="px-4 py-3">{pet.BreedName}</td>
+                                            <td className="px-4 py-3">{calculateAge(pet.DateOfBirth)}</td>
                                             <td className="px-4 py-3">
                                                 <span className={`px-2 py-1 rounded text-xs ${
                                                     pet.Status === 'Available' ? 'bg-green-100 text-green-800' :
@@ -373,6 +568,104 @@ const AdminCRUD = () => {
                     </div>
                 </div>
             </div>
+
+            {/* View Pet Modal */}
+            {showViewModal && viewingPet && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowViewModal(false)}>
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                        <div className="p-6 border-b flex justify-between items-center">
+                            <h2 className="text-2xl font-bold text-slate-800">Pet Details</h2>
+                            <button
+                                onClick={() => setShowViewModal(false)}
+                                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                            >
+                                ×
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {viewingPet.image_data && (
+                                    <div className="md:col-span-2 mb-4">
+                                        <img
+                                            src={viewingPet.image_data}
+                                            alt={viewingPet.Name}
+                                            className="w-full max-w-md mx-auto rounded-lg shadow-lg"
+                                        />
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600">Name</label>
+                                    <p className="text-lg text-slate-800 mt-1">{viewingPet.Name}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600">Type</label>
+                                    <p className="text-lg text-slate-800 mt-1">{viewingPet.PetType || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600">Breed</label>
+                                    <p className="text-lg text-slate-800 mt-1">{viewingPet.BreedName}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600">Age</label>
+                                    <p className="text-lg text-slate-800 mt-1">{calculateAge(viewingPet.DateOfBirth)}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600">Gender</label>
+                                    <p className="text-lg text-slate-800 mt-1">{viewingPet.Gender === 'M' ? 'Male' : 'Female'}</p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600">Status</label>
+                                    <p className="text-lg mt-1">
+                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                            viewingPet.Status === 'Available' ? 'bg-green-100 text-green-800' :
+                                            viewingPet.Status === 'Pending' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-gray-100 text-gray-800'
+                                        }`}>
+                                            {viewingPet.Status}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600">Health Status</label>
+                                    <p className="text-lg mt-1">
+                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                            viewingPet.HealthStatus === 'Healthy' ? 'bg-green-100 text-green-800' :
+                                            viewingPet.HealthStatus === 'Under Treatment' ? 'bg-yellow-100 text-yellow-800' :
+                                            'bg-red-100 text-red-800'
+                                        }`}>
+                                            {viewingPet.HealthStatus || 'N/A'}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div>
+                                    <label className="text-sm font-semibold text-gray-600">Date of Birth</label>
+                                    <p className="text-lg text-slate-800 mt-1">{viewingPet.DateOfBirth ? new Date(viewingPet.DateOfBirth).toLocaleDateString() : 'N/A'}</p>
+                                </div>
+                                {viewingPet.ShelterName && (
+                                    <div>
+                                        <label className="text-sm font-semibold text-gray-600">Shelter</label>
+                                        <p className="text-lg text-slate-800 mt-1">{viewingPet.ShelterName}</p>
+                                    </div>
+                                )}
+                                {viewingPet.City && (
+                                    <div>
+                                        <label className="text-sm font-semibold text-gray-600">Location</label>
+                                        <p className="text-lg text-slate-800 mt-1">{viewingPet.City}</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                        <div className="p-6 border-t flex justify-end">
+                            <button
+                                onClick={() => setShowViewModal(false)}
+                                className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

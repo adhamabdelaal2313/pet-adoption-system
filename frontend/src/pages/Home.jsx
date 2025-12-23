@@ -1,5 +1,29 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../utils/axios';
+import { useAuth } from '../context/AuthContext';
+
+// Calculate age from date of birth
+const calculateAge = (dateOfBirth) => {
+    if (!dateOfBirth) return 'N/A';
+    const birthDate = new Date(dateOfBirth);
+    const today = new Date();
+    let years = today.getFullYear() - birthDate.getFullYear();
+    let months = today.getMonth() - birthDate.getMonth();
+    
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+    
+    if (years === 0) {
+        return `${months} month${months !== 1 ? 's' : ''}`;
+    } else if (months === 0) {
+        return `${years} year${years !== 1 ? 's' : ''}`;
+    } else {
+        return `${years} year${years !== 1 ? 's' : ''}, ${months} month${months !== 1 ? 's' : ''}`;
+    }
+};
 
 // Helper function to format image URL
 const formatImageUrl = (imageData) => {
@@ -21,6 +45,8 @@ const formatImageUrl = (imageData) => {
 };
 
 const Home = () => {
+    const navigate = useNavigate();
+    const { isAdmin } = useAuth();
     const [pets, setPets] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -35,21 +61,17 @@ const Home = () => {
             const response = await api.get('/pets');
             const petsData = response.data.pets || [];
             
-            // Format image URLs and debug
-            const formattedPets = petsData.map(pet => ({
+            // Backend handles filtering: admins see all pets, regular users see only non-adopted
+            // Frontend safety check: if backend didn't filter (shouldn't happen), filter here for non-admins
+            const filteredPets = isAdmin 
+                ? petsData 
+                : petsData.filter(pet => pet.Status !== 'Adopted');
+            
+            // Format image URLs
+            const formattedPets = filteredPets.map(pet => ({
                 ...pet,
                 image_data: formatImageUrl(pet.image_data)
             }));
-            
-            // Debug: Log first pet to check image data
-            if (formattedPets.length > 0) {
-                console.log('Sample pet data:', {
-                    name: formattedPets[0].Name,
-                    hasImage: !!formattedPets[0].image_data,
-                    imageLength: formattedPets[0].image_data?.length,
-                    imagePreview: formattedPets[0].image_data?.substring(0, 50)
-                });
-            }
             
             setPets(formattedPets);
             setError('');
@@ -91,7 +113,7 @@ const Home = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-24 pb-8">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 pt-32 pb-8">
             <div className="container mx-auto px-4">
                 <div className="text-center mb-12">
                     <h1 className="text-5xl font-bold text-slate-800 mb-3">Available Pets for Adoption</h1>
@@ -153,6 +175,9 @@ const Home = () => {
                                             <span className="font-medium">Breed:</span> {pet.BreedName}
                                         </p>
                                         <p>
+                                            <span className="font-medium">Age:</span> {calculateAge(pet.DateOfBirth)}
+                                        </p>
+                                        <p>
                                             <span className="font-medium">Gender:</span>{' '}
                                             {pet.Gender === 'M' ? 'Male' : 'Female'}
                                         </p>
@@ -172,7 +197,28 @@ const Home = () => {
                                             </p>
                                         )}
                                     </div>
-                                    <div className="flex items-center justify-between">
+                                    
+                                    {/* Action Button */}
+                                    <div className="px-5 pb-3">
+                                        {pet.Status !== 'Adopted' ? (
+                                            <button
+                                                onClick={() => navigate(`/apply/${pet.AnimalID}`)}
+                                                className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors shadow-md hover:shadow-lg"
+                                            >
+                                                Apply to Adopt
+                                            </button>
+                                        ) : (
+                                            <button
+                                                disabled
+                                                className="w-full bg-gray-300 text-gray-600 font-semibold py-2 px-4 rounded-lg cursor-not-allowed"
+                                            >
+                                                Already Adopted
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {/* Status Badge */}
+                                    <div className="px-5 pb-5">
                                         <span
                                             className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(
                                                 pet.Status

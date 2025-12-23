@@ -1,14 +1,13 @@
 const db = require('../config/db');
 
-// GET /api/admin/breeds - Get all breeds (for dropdowns)
 exports.getBreeds = async (req, res) => {
     try {
-        // Using parameterized query with JOIN
         const query = `
             SELECT 
                 b.BreedID,
                 b.BreedName,
-                s.SpeciesName
+                s.SpeciesName,
+                s.SpeciesID
             FROM Breeds b
             JOIN Species s ON b.SpeciesID = s.SpeciesID
             ORDER BY s.SpeciesName, b.BreedName
@@ -27,10 +26,8 @@ exports.getBreeds = async (req, res) => {
     }
 };
 
-// GET /api/admin/shelters - Get all shelters (for dropdowns)
 exports.getShelters = async (req, res) => {
     try {
-        // Using parameterized query
         const query = `
             SELECT 
                 ShelterID,
@@ -54,3 +51,25 @@ exports.getShelters = async (req, res) => {
     }
 };
 
+exports.getSpecies = async (req, res) => {
+    try {
+        const query = `
+            SELECT 
+                SpeciesID,
+                SpeciesName
+            FROM Species
+            ORDER BY SpeciesName
+        `;
+        
+        const [species] = await db.query(query);
+        
+        res.json({
+            success: true,
+            species
+        });
+        
+    } catch (error) {
+        console.error('Get species error:', error);
+        res.status(500).json({ error: 'Failed to fetch species' });
+    }
+};

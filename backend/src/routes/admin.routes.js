@@ -9,5 +9,8 @@ router.get('/breeds', authMiddleware, adminController.getBreeds);
 // GET /api/admin/shelters - Get all shelters
 router.get('/shelters', authMiddleware, adminController.getShelters);
 
+// GET /api/admin/species - Get all species
+router.get('/species', authMiddleware, adminController.getSpecies);
+
 module.exports = router;
 

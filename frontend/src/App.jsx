@@ -6,11 +6,26 @@ import Home from './pages/Home';
 import AddPet from './pages/AddPet';
 import AdminCRUD from './pages/AdminCRUD';
 import Reports from './pages/Reports';
+import SubmitApplication from './pages/SubmitApplication';
+import MyApplications from './pages/MyApplications';
+import ManageApplications from './pages/ManageApplications';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated } = useAuth();
     return isAuthenticated ? children : <Navigate to="/" replace />;
+};
+
+// Admin Route Component
+const AdminRoute = ({ children }) => {
+    const { isAuthenticated, isAdmin } = useAuth();
+    if (!isAuthenticated) {
+        return <Navigate to="/" replace />;
+    }
+    if (!isAdmin) {
+        return <Navigate to="/pets" replace />;
+    }
+    return children;
 };
 
 // Layout Component with Floating Navbar
@@ -60,21 +75,51 @@ function App() {
                     <Route
                         path="/admin/crud"
                         element={
-                            <ProtectedRoute>
+                            <AdminRoute>
                                 <Layout>
                                     <AdminCRUD />
                                 </Layout>
-                            </ProtectedRoute>
+                            </AdminRoute>
                         }
                     />
                     <Route
                         path="/reports"
                         element={
-                            <ProtectedRoute>
+                            <AdminRoute>
                                 <Layout>
                                     <Reports />
                                 </Layout>
+                            </AdminRoute>
+                        }
+                    />
+                    <Route
+                        path="/apply/:id"
+                        element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <SubmitApplication />
+                                </Layout>
                             </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/my-applications"
+                        element={
+                            <ProtectedRoute>
+                                <Layout>
+                                    <MyApplications />
+                                </Layout>
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/applications"
+                        element={
+                            <AdminRoute>
+                                <Layout>
+                                    <ManageApplications />
+                                </Layout>
+                            </AdminRoute>
                         }
                     />
                     

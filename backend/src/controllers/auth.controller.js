@@ -26,15 +26,19 @@ exports.signup = async (req, res) => {
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
+        // All new signups get 'user' role by default
+        // Admin role must be assigned manually through database or by existing admin
+        const role = 'user';
+
         // Insert new user
         const [result] = await db.query(
-            'INSERT INTO Users (Email, PasswordHash, FirstName, LastName, CreatedAt) VALUES (?, ?, ?, ?, NOW())',
-            [email, hashedPassword, firstName, lastName]
+            'INSERT INTO Users (Email, PasswordHash, FirstName, LastName, Role, CreatedAt) VALUES (?, ?, ?, ?, ?, NOW())',
+            [email, hashedPassword, firstName, lastName, role]
         );
 
-        // Generate JWT token
+        // Generate JWT token with role
         const token = jwt.sign(
-            { userId: result.insertId, email },
+            { userId: result.insertId, email, role },
             process.env.JWT_SECRET || 'your-secret-key-change-in-production',
             { expiresIn: '7d' }
         );
@@ -47,7 +51,8 @@ exports.signup = async (req, res) => {
                 id: result.insertId,
                 email,
                 firstName,
-                lastName
+                lastName,
+                role
             }
         });
 
@@ -69,7 +74,7 @@ exports.login = async (req, res) => {
 
         // Find user by email
         const [users] = await db.query(
-            'SELECT UserID, Email, PasswordHash, FirstName, LastName FROM Users WHERE Email = ?',
+            'SELECT UserID, Email, PasswordHash, FirstName, LastName, Role FROM Users WHERE Email = ?',
             [email]
         );
 
@@ -86,9 +91,9 @@ exports.login = async (req, res) => {
             return res.status(401).json({ error: 'Invalid email or password' });
         }
 
-        // Generate JWT token
+        // Generate JWT token with role
         const token = jwt.sign(
-            { userId: user.UserID, email: user.Email },
+            { userId: user.UserID, email: user.Email, role: user.Role },
             process.env.JWT_SECRET || 'your-secret-key-change-in-production',
             { expiresIn: '7d' }
         );
@@ -101,7 +106,8 @@ exports.login = async (req, res) => {
                 id: user.UserID,
                 email: user.Email,
                 firstName: user.FirstName,
-                lastName: user.LastName
+                lastName: user.LastName,
+                role: user.Role || 'user' // Default to 'user' if role is null
             }
         });
 

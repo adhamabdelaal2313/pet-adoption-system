@@ -59,6 +59,7 @@ CREATE TABLE Users (
     PasswordHash VARCHAR(255) NOT NULL,
     FirstName VARCHAR(50) NOT NULL,
     LastName VARCHAR(50) NOT NULL,
+    Role VARCHAR(20) DEFAULT 'user' NOT NULL, -- 'admin' or 'user'
     CreatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
